@@ -29,18 +29,18 @@ Reliable:
 ### Usage
 
 ```r
-install.packages('arrow')
+install.packages("arrow")
 
-library('tidyverse')
-library('arrow')
+library("tidyverse")
+library("arrow")
 
 # load the whole damn thing (not recommended)
-pisa <- open_dataset('pisa.parquet', partitioning='country') %>% collect()
+pisa <- open_dataset("build/pisa.rx") |> collect()
 
 # preselect the data you are interested in
-pisa2000 <- open_dataset('pisa.parquet', partitioning='country') %>%
-  select(c(starts_with('pv'), starts_with('w_'), 'escs', 'grade', 'gender')) %>%
-  filter(country == 'Belgium', year == 2000) %>%
+pisa2000 <- open_dataset("build/pisa.rx") |> 
+  select(c(starts_with("pv"), starts_with("w_"), "escs", "grade", "gender")) |> 
+  filter(country == "Belgium", cycle == 2000) |> 
   collect()
 ```
 
