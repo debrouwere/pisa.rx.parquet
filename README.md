@@ -56,7 +56,7 @@ assessments <- open_dataset("build/pisa.rx") |>
   collect()
 ```
 
-We also provide more advanced filtering with the help of metadata tables that contain additional information about countries and cycles that is not a part of the main dataset. Currently we provide two such tables: `memberships.csv` and `coverage.csv`. In R, these tables can easily be used as a key with which to subset the main dataset, passed on to `dplyr::semi_join`.
+We also provide more advanced filtering with the help of metadata tables that contain additional information about countries and cycles that is not a part of the main dataset. Currently we provide two such tables: `memberships.csv` and `coverage.csv`. These tables can be used as a key with which to subset the main dataset, passed on to `dplyr::semi_join`. (Of course they can also be used for exploration, for example to see whether there is a sufficient amount of countries with coverage of the variables that you are interested in, or vice versa, to see what variables are covered for your countries of interest.)
 
 Arrow and Parquet have native support for semi joins, which means that rows are filtered on the fly. This saves time and memory because we never read rows into memory that we don't need.
 
@@ -86,7 +86,7 @@ assessments <- open_dataset("build/pisa.rx") |>
   collect()
 ```
 
-**Find countries that have 50% non-na values for `speaks_test_language_at_home` for at least 6 out of 8 cycles**
+**Find countries that have 50% non-`NA` values for `speaks_test_language_at_home` for at least 6 out of 8 cycles**
 
 ```r
 coverage <- read_csv("build/coverage.csv")
