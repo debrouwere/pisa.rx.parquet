@@ -8,13 +8,16 @@ upload:
 
 # when on wifi, consider that sneakernet is considerably faster
 download:
-	rsync --recursive --verbose --partial --progress ${PISA_BUILD_SERVER}:${PISA_REMOTE_PATH}/data .
+	rsync --recursive --verbose --partial --progress ${PISA_BUILD_SERVER}:${PISA_REMOTE_PATH}/build .
 
 snapshot:
 	Rscript -e 'renv::snapshot()'
 
 update: snapshot upload
 	ssh ${PISA_BUILD_SERVER} "cd ${PISA_REMOTE_PATH}; Rscript -e 'renv::restore()'"
+
+codebook:
+	ssh ${PISA_BUILD_SERVER} "cd ${PISA_REMOTE_PATH}; Rscript src/metadata.R"
 
 build:
 	ssh ${PISA_BUILD_SERVER} "cd ${PISA_REMOTE_PATH}; Rscript src/preprocess.R"

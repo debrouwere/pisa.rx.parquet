@@ -12,17 +12,53 @@ library("arrow")
 
 #### Codebook ####
 
+CYCLES <- c(2000, 2003, 2006, 2009, 2012, 2015, 2018, 2022)
+
 assessments <- open_dataset('build/pisa.rx') |>
-  select(!starts_with('pv'), !starts_with('w_'), !starts_with('f_')) |>
+  select(!starts_with('pv') & !starts_with('w_') & !starts_with('f_') & !ends_with('_id') & !ends_with('_uid') & !ends_with('_iso')) |>
   collect()
 
-codebook <- assessments |>
-  group_by(cycle, country, economy, region) |>
-  summarize(across(everything(), \(x) mean(!is.na(x))))
+grid <- assessments |>
+  select(country, economy, region) |>
+  distinct() |>
+  cross_join(tibble(cycle = CYCLES))
 
-write_parquet(codebook, 'build/codebook.parquet')
+coverage <- assessments |>
+  full_join(grid) |>
+  group_by(cycle, country, economy, region) |>
+  summarize(across(everything(), \(x) round(1 - mean(is.na(x)), 2))) |>
+  ungroup()
+
+write_csv(coverage, 'build/coverage.csv')
+
+# # Example: find countries that have at least 50% non-na values for
+# # `speaks_test_language_at_home` in every cycle
+# coverage <- read_csv('build/coverage.csv')
+# usable_countries <- coverage |>
+#   mutate(across(everything(), min), .by = 'country') |>
+#   filter(speaks_test_language_at_home >= 0.5)
+#
+# assessments |>
+#   semi_join(usable_countries, by = c('cycle', 'country'))
+#
+# # Example: find countries that have 50% non-na values for
+# # `speaks_test_language_at_home` for at least 6 out of 8 cycles
+# # (slightly more involved because we need to calculate by region
+# # and then summarize down to country, otherwise countries with
+# # multiple regions get counted more than once)
+# coverage <- read_csv('build/coverage.csv')
+# usable_countries <- coverage |>
+#   filter(speaks_test_language_at_home >= 0.5) |>
+#   count(country, region) |>
+#   summarize(n = min(n), .by = 'country') |>
+#   filter(n >= 6)
+#
+# assessments |>
+#   semi_join(usable_countries, by = c('cycle', 'country'))
 
 #### Memberships ####
+
+file.copy("data/memberships.csv", "build/memberships.csv")
 
 # Example:
 #
