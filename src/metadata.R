@@ -6,3 +6,28 @@
 #    `filter(economy %in% economies_subset) |> summarize(across(c(hisced, hisei, escs)), ~ `
 # * organizational membership so folks can do e.g. `filter(membership == 'European Union', accession <= 2000) |> pull(economy)`
 #   and then use that in a semi-join; for now we'll stick to OECD and EU but of course we can add other supranational organizations later on
+
+library("tidyverse")
+library("arrow")
+
+#### Codebook ####
+
+assessments <- open_dataset('build/pisa.rx') |>
+  select(!starts_with('pv'), !starts_with('w_'), !starts_with('f_')) |>
+  collect()
+
+codebook <- assessments |>
+  group_by(cycle, country, economy, region) |>
+  summarize(across(everything(), \(x) mean(!is.na(x))))
+
+write_parquet(codebook, 'build/codebook.parquet')
+
+#### Memberships ####
+
+# Example:
+#
+# memberships <- read_csv('data/memberships.csv')
+# pisa |>
+#   semi_join(
+#     filter(memberships, organization == 'European Union', since <= 2000, is.na(until)),
+#     by = 'country_iso')

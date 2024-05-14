@@ -20,4 +20,12 @@ build:
 	ssh ${PISA_BUILD_SERVER} "cd ${PISA_REMOTE_PATH}; Rscript src/preprocess.R"
 
 data:
-  wget
+	mkdir -p ../pisa.parquet/build
+	wget -P ../pisa.parquet/build https://github.com/debrouwere/pisa.parquet/releases/download/v2022.1.0/2000.parquet
+	wget -P ../pisa.parquet/build https://github.com/debrouwere/pisa.parquet/releases/download/v2022.1.0/2003.parquet
+	wget -P ../pisa.parquet/build https://github.com/debrouwere/pisa.parquet/releases/download/v2022.1.0/2006.parquet
+	wget -P ../pisa.parquet/build https://github.com/debrouwere/pisa.parquet/releases/download/v2022.1.0/2009.parquet
+	wget -P ../pisa.parquet/build https://github.com/debrouwere/pisa.parquet/releases/download/v2022.1.0/2012.parquet
+	wget -P ../pisa.parquet/build https://github.com/debrouwere/pisa.parquet/releases/download/v2022.1.0/2015.parquet
+	wget -P ../pisa.parquet/build https://github.com/debrouwere/pisa.parquet/releases/download/v2022.1.0/2018.parquet
+	wget -P ../pisa.parquet/build https://github.com/debrouwere/pisa.parquet/releases/download/v2022.1.0/2022.parquet

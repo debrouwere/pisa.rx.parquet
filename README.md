@@ -45,3 +45,6 @@ pisa2000 <- open_dataset("build/pisa.rx") |>
 ```
 
 When working with large datasets in CSV or FWF format, it is common to read in the entire dataset even if you need only a handful of columns, which uses a lot of memory but avoids having to wait endless minutes while reading in the data yet again if you decide you need to include an additional column or two. However, reading in Parquet data is nearly instantaneous so you will work faster and use less memory if you preselect the data you need while reading it in.
+
+**Subsets of the data**
+
