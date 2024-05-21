@@ -1,0 +1,32 @@
+WRITE_PARQUET_CPP
+
+In `pisa.rx.parquet`, we have opted to pre-join data from students, teachers and schools because quick-and-dirty benchmarks showed that it speeds up reads by 5x or more while decreasing memory use by almost 2x. The downside is that denormalization leads to larger file sizes because of the many repeated values at higher levels. Fortunately, Parquet supports a number of different delta encodings that can efficiently store repeated values. Unfortunately, those encodings are currently not exposed in the R library for Arrow and Parquet. Therefore, we have written a custom write_parquet_cpp function with an R binding.
+
+`write_parquet_cpp` is a work in progress: it does the job, but does not yet support partitioning, and it does not save any metadata, so chances are it will read in factors as characters.
+
+The encoding types are:
+
+* PLAIN = 0
+* PLAIN_DICTIONARY = 2 (deprecated)
+* RLE = 3
+* BIT_PACKED = 4
+* DELTA_BINARY_PACKED = 5
+* DELTA_LENGTH_BYTE_ARRAY = 6
+* DELTA_BYTE_ARRAY = 7
+* RLE_DICTIONARY = 8
+* BYTE_STREAM_SPLIT = 9
+
+Most encodings are limited to particular types of data:
+
+* strings: DELTA_BYTE_ARRAY, DELTA_LENGTH_BYTE_ARRAY
+* floats: BYTE_STREAM_SPLIT
+* ints: DELTA_BINARY_PACKED
+* bools: RLE
+
+`DELTA_BYTE_ARRAY` (7) in particular shows very good performance for repeated strings, in combination with ZSTD compression.
+
+See https://parquet.apache.org/docs/file-format/data-pages/encodings/ for more information.
+
+Note that in Parquet 2.0+, the default encoding for columns is RLE_DICTIONARY which first generates a dictionary for all values, replaces values with indices that point to the dictionary, and then applies run-length encoding to the indices. For factors and other columns with few enough unique values, which allows for a dictionary to be created, this encoding is hard to beat. The other encodings do have an advantage for columns with too many unique values for a dictionary and for columns with small incremental changes such as the various `uid` columns in the dataset.
+
+Also note that the RLE algorithm for bools may not be useful for us because booleans in Parquet do not support NA values.
