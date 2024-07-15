@@ -13,6 +13,7 @@ columns <- tribble(
   ~name,                          ~original_name, ~is_complete,  ~is_exact, ~description,
   "age",                          "age",          TRUE,          TRUE,      "from months to years (00)",
   "immigrant_generation",         "immig",        TRUE,          TRUE,      "harmonized",
+  "sex",                          "gender",       TRUE,          TRUE,      "harmonized",
   "speaks_test_language_at_home", "",             FALSE,         TRUE,      "harmonized",
 )
 
@@ -32,6 +33,8 @@ process <- function(raw, processed) {
     discard_at('2000') |>
     bind_rows()
   age <- bind_rows(head, tail)
+
+  sex <- bind_rows(across_cycles(raw, "gender")) |> rename(sex = "gender")
 
   cli_progress_step('Infer immigrant generation for PISA 2000')
 
@@ -68,7 +71,7 @@ process <- function(raw, processed) {
     raw$`2022`$st022q01ta == 'Language of the test'
   ))
 
-  bind_cols(age, generation, language)
+  bind_cols(age, sex, generation, language)
 }
 
 verify <- function(raw, processed) {
