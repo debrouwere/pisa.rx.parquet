@@ -9,6 +9,7 @@
 
 library("tidyverse")
 library("arrow")
+library("readxl")
 
 #### Codebook ####
 
@@ -18,16 +19,43 @@ assessments <- open_dataset('build/pisa.rx') |>
   select(!starts_with('pv') & !starts_with('w_') & !starts_with('f_') & !ends_with('_id') & !ends_with('_uid') & !ends_with('_iso')) |>
   collect()
 
-grid <- assessments |>
-  select(country, economy, region) |>
-  distinct() |>
-  cross_join(tibble(cycle = CYCLES))
+# TODO: add a row for the country as a whole (if it has multiple economies or regions)
+cycles <- tibble(cycle = CYCLES)
 
-coverage <- assessments |>
-  full_join(grid) |>
+participation <- assessments |>
+  select(cycle, country, economy, region) |>
+  distinct()
+
+entities <- participation |>
+  select(-cycle) |>
+  distinct()
+
+grid_by_country <- entities |>
+  mutate(
+    economy = country,
+    region = country,
+  ) |>
+  distinct() |>
+  cross_join(cycles)
+
+grid_by_region <- entities |>
+  filter(country != economy | country != region) |>
+  cross_join(cycles)
+
+coverage_by_region <- assessments |>
+  right_join(grid_by_region) |>
   group_by(cycle, country, economy, region) |>
   summarize(across(everything(), \(x) round(1 - mean(is.na(x)), 2))) |>
   ungroup()
+
+coverage_by_country <- assessments |>
+  right_join(grid_by_country) |>
+  group_by(cycle, country, economy, region) |>
+  summarize(across(everything(), \(x) round(1 - mean(is.na(x)), 2))) |>
+  ungroup()
+
+coverage <- bind_rows(coverage_by_region, coverage_by_country) |>
+  arrange(country, economy, region, cycle)
 
 write_csv(coverage, 'build/coverage.csv')
 
@@ -67,3 +95,97 @@ file.copy("data/memberships.csv", "build/memberships.csv")
 #   semi_join(
 #     filter(memberships, organization == 'European Union', since <= 2000, is.na(until)),
 #     by = 'country_iso')
+
+#### Domains and cycles ####
+
+# * make long form
+# * add weights column info
+# * is_major
+# * is_linked (2000, 2003, 2006, *with the exception of* shape/change subdomains
+#   which have been linked since 2000)
+aliases <- read_csv('data/domains-by-year.csv')
+
+domains <- aliases |>
+  pivot_longer(
+    cols = `2000`:`2022`,
+    names_to = 'cycle'
+    ) |>
+  filter(!is.na(value)) |>
+  mutate(
+    final_weights = str_glue('w_{domain}_student_final'),
+    replicate_weights = str_glue('w_{domain}_student_r'),
+    is_major = case_when(
+      domain == 'literacy' & cycle %in% c(2000, 2009, 2018) ~ TRUE,
+      domain == 'math' & cycle %in% c(2003, 2012, 2022) ~ TRUE,
+      domain == 'science' & cycle %in% c(2006, 2015) ~ TRUE,
+      .default = FALSE
+    ),
+    is_linked = case_when(
+      domain == 'literacy' ~ TRUE,
+      domain == 'math' & cycle >= 2003 ~ TRUE,
+      domain == 'science' & cycle >= 2006 ~ TRUE,
+      scale %in% c('math_content_shape', 'math_content_shape') ~ TRUE,
+      .default = FALSE
+    ),
+  pvs = if_else(cycle >= 2015, 10, 5),
+  rws = 80,
+  ) |>
+  select(cycle, domain, subdomain, scale, final_weights, replicate_weights, is_major, is_linked, pvs, rws)
+
+write_csv(domains, 'build/domains.csv')
+
+#### Population and sample ####
+
+participation_with_countries <- participation |>
+  filter(country != economy | country != region) |>
+  mutate(
+    economy = country,
+    region = country,
+  ) |>
+  bind_rows(participation) |>
+  distinct()
+
+coverage <- read_xlsx('data/coverage/coverage.xlsx')
+
+population_totals <- coverage |>
+  rename(
+    cycle = "cycle",
+    country = "country",
+    economy = "economy",
+    region = "region",
+    total_population = "All 15-year-olds",
+    enrolled_population = "Enrolled 15-year-olds",
+    target_population = "Target population",
+    school_level_exclusions = "School-level exclusions",
+    school_level_exclusions_pct = "School-level exclusion rate (%)",
+    target_population_minus_school_level_exclusions = "Target minus school level exclusions",
+    enrolled_students_from_frame_est = "Estimation of enrolled students from frame",
+    participating_students = "Number participating students",
+    participating_students_weighted = "Weighted number of participating students",
+    excluded_students = "Number of excluded students",
+    excluded_students_weighted = "Weighted number of excluded students",
+    ineligible_students = "Number of ineligible students",
+    ineligible_students_weighted = "Weighted number of ineligible students",
+    eligible_students = "Number of eligible students",
+    eligible_students_weighted = "Weighted number of eligible students",
+    student_level_exclusions_pct = "Within school exclusion rate (%)",
+    exclusion_rate = "Overall exclusion rate (%)",
+    ineligibility_rate = "Percentage ineligible/withdrawn",
+    coverage_index_1 = "Coverage Index 1",
+    coverage_index_2 = "Coverage Index 2",
+    coverage_index_3 = "Coverage Index 3",
+    coverage_index_4 = "Coverage Index 4",
+    coverage_index_5 = "Coverage Index 5",
+  ) |> mutate(
+    has_coverage_statistics = !is.na(coverage_index_3),
+    # WARNING: there seem to be some errors in the published number of (weighted) excluded students in 2006,
+    # some exclusion rates are 200% of the target population!
+    excluded_students_weighted = if_else(cycle == 2006, NA, excluded_students_weighted),
+  )
+
+participating_countries_with_stats <- participation_with_countries |>
+  left_join(population_totals, by = c('cycle', 'country', 'economy', 'region'), relationship = 'one-to-one') |>
+  replace_na(list(has_coverage_statistics=FALSE)) |>
+  arrange(cycle, country, economy, region)
+
+write_csv(participating_countries_with_stats, 'build/population-sample.csv')
