@@ -48,7 +48,7 @@ load <- function(cycles) {
   map(cycles, function(year) {
     year <- as.character(year)
     assessment <- read_parquet(
-      file = file.path(PISA_PATH, str_c(year, '.parquet')),
+      file = file.path(PISA_PATH, year, 'students.parquet'),
       col_select=c(
         na.omit(columns_by_assessment[[year]]),
         matches(PV_PATTERN),
@@ -65,9 +65,10 @@ preprocessors <- list(
   'outcomes',
   'weights',
   'sampling',
+  'grade',
   'demographics',
-  'parents',
-  'grade'
+  'parental-education',
+  'parental-occupation'
 )
 
 # TODO: consider error recovery where, if an error is encountered,
@@ -88,9 +89,9 @@ result <- identifiers$process(raw, processed)
 cli_progress_message('Make unique identifiers available to preprocessors')
 
 uids <- result |>
-  select(cycle, country, economy, region, student_uid) |>
+  select(cycle, nth_cycle, country, economy, region, student_uid) |>
   group_by(cycle) |>
-  group_split(.keep = FALSE)
+  group_split(.keep = TRUE)
 
 # arrange raw and processed data by student_uid to ensure stable output when
 # a preprocessor uses a `.by` grouped computation

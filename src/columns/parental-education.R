@@ -26,13 +26,14 @@ columns <- tribble(
   "mothers_isced",                  "misced",       TRUE,          TRUE,      "from months to years (00)",
   "fathers_isced",                  "fisced",       TRUE,          TRUE,      "harmonized",
   "highest_isced",                  "hisced",       TRUE,          TRUE,      "harmonized",
+  # "highest_isei",                   "hisei",        TRUE,          TRUE,      "as is",
   "parental_education_by_country",  "pared",        TRUE,          FALSE,     "inferred from misced/fisced and an isced-to-years mapping (00)",
   "parental_education",             "paredint",     TRUE,          TRUE,      "backported using the OECD mapping from 2018, Annex D",
 )
 
 # hisei, hisced, ...
 
-description <- "Parents' education and occupation"
+description <- "Parents' education"
 
 is_stable <- TRUE
 
@@ -63,7 +64,7 @@ process <- function(raw, processed) {
     mutate(
       misced = factor(misced, levels=0:6, labels=ISCED, ordered=TRUE),
       fisced = factor(fisced, levels=0:6, labels=ISCED, ordered=TRUE),
-      hisced = pmax(misced, fisced, na.rm = TRUE)
+      hisced = pmax(misced, fisced, na.rm = TRUE),
     ) |>
     left_join(isced_to_years_by_area, by = c('country', 'economy', 'region', 'hisced'))
 
@@ -73,7 +74,7 @@ process <- function(raw, processed) {
     mutate(
       misced = factor(misced, levels=ISCED, ordered=TRUE),
       fisced = factor(fisced, levels=ISCED, ordered=TRUE),
-      hisced = pmax(misced, fisced, na.rm = TRUE)
+      hisced = pmax(misced, fisced, na.rm = TRUE),
     )
 
   bind_rows(head, tail) |>
@@ -84,7 +85,7 @@ process <- function(raw, processed) {
       fathers_isced = 'fisced',
       highest_isced = 'hisced',
       parental_education_by_country = 'pared',
-      parental_education = 'paredint'
+      parental_education = 'paredint',
     )
 }
 
