@@ -36,7 +36,7 @@ random_order <- function(w) {
 }
 
 process <- function(raw, processed) {
-  cli_progress_step('Assign a sample proportion to each observation, within strata.')
+  cli_progress_step('Assign a sample proportion to each observation, within strata')
 
   set.seed(2024)
 
