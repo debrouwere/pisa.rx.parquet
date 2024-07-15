@@ -1,7 +1,4 @@
-# TODO:
-# * process student_id, school_id etc. independently per cycle, extracting only the relevant component
-#   (e.g. in recent cycles, schoolid also includes the subnatio code)
-# * reconstruct unique identifiers from scratch such that
+# The unique identifiers are (re)constructed so that
 #
 #   cycle       = cycle
 #   country_uid = cycle + country_id
@@ -13,14 +10,14 @@
 # (This is mostly how PISA itself has been constructing its identifiers, and
 # in particular `cntstuid`, included since 2015, is unique within a cycle, but
 # they didn't always adhere to this formula and they don't include the cycle
-# either. If strictly adhered to, `student_uid` will obviate the need for
-# a separate `unique_id` and is generally useful because you can always join
+# either. This approach is generally useful because you can always join
 # at the most specific level you’re interested in and don’t have to include
 # the higher levels. This is for internal joins (student data to aggregated
 # student data, student data to school data, etc.), for external datasets
 # such as GDP etc. it seems more likely that you'd use cycle and/or country_iso.
+#
 # Note generally that for the country_id, economy_id and region_id columns we
-# do guarantee consistency over time and uniqueness within an assessment, so these
+# do guarantee consistency over time and uniqueness within a cycle, so these
 # keys can be used to join across cycles, as clustering variables in a multilevel
 # analysis etc.)
 
@@ -36,10 +33,9 @@
 # a subnation may be a different combination of provinces or communities in every
 # edition. In that case, we can sometimes still construct regions that are consistent
 # from 2000 to 2022 by taking the subnations and including or excluding certain strata,
-# as the strata also often include information about the subregions.
-
-# "subnation" harmonizes only the names,
-# "region" also ensures consistent regions across time
+# as the strata also often include information about the subregions. In some cases
+# this does mean that whereas the subnation may have been adjudicated in some cycles,
+# we can no longer give the same guarantee for the harmonized regions.
 
 # In the simplest case, country, economy and region will be identical to each other.
 # This allows us to easily take subsets of the data:
@@ -48,9 +44,9 @@
 #   => filter()
 # * select countries but not economies
 #   => filter(country == economy)
-# * select economies (for which we do not have complete country coverage)
+# * select economies but not countries
 #   => filter(economy != country)
-# * select regions (that are not countries)
+# * select regions but not countries
 #   => filter(region != country, region != economy)
 # * select regions and economies (that are not countries)
 #   => filter(region != country)
@@ -58,14 +54,17 @@
 # When selecting countries and/or economies, we can analyze
 # at that level but we can also still group by region.
 #
-#
-#
-#
 # The OECD uses a mix of colloquial names, official names and compromise names
 # to avoid geopolitical sensitivities, with a small number of differences in
-# naming between assessments that we will attempt to standardize.
+# naming between assessments that we have standardized.
 #
-#
+# Most of the time, PISA analyses work at the economy level (which may be
+# identical to the country), e.g. PISA reports Hong Kong, Macao and
+# Beijing-Shanghai-Jiangsu-Zhejiang separately although they are all part of
+# China. Economies and regions are (at least for PISA 2000 to PISA 2022)
+# mutually exclusive: some countries participate with multiple regions, others
+# with multiple economies, but there are never different regions within an
+# economy.
 #
 # In a handful of cases we have "upgraded" an economy to a country:
 # * Spain (regions) -- because it seems to include *all* regions!?
@@ -84,7 +83,10 @@ library('testthat')
 
 source('src/helpers.R')
 
-countries <- read_csv('data/countries/iso-en.csv')
+cycle_to_ix <- 1:8
+names(cycle_to_ix) <- CYCLES
+
+countries <- read_csv('data/countries.csv')
 iso_to_name <- countries$name
 iso_to_official_name <- countries$official_name
 iso_to_oecd_name <- countries$oecd_name
@@ -105,6 +107,9 @@ names(iso_to_economy) <- economies$economy
 
 economy_to_country <- economies$country
 names(economy_to_country) <- economies$economy
+
+countries <- countries |>
+  filter(!(iso_alpha_3 %in% economies$economy))
 
 subnations <- read_csv('data/subnations.csv') |>
   pivot_longer(all_of(as.character(CYCLES)), names_to='cycle', values_to='subnatio') |>
@@ -130,6 +135,7 @@ process <- function(raw, processed) {
     bind_rows() |>
     transmute(
       cycle = cycle,
+      nth_cycle = as.integer(cycle_to_ix[as.character(cycle)]),
       country_iso = if_else(economy_iso %in% countries$iso_alpha_3, economy_iso, economy_to_country[economy_iso]),
       country = iso_to_name[country_iso],
       economy_iso = economy_iso,
