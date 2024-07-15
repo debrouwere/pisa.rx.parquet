@@ -4,11 +4,11 @@ include .Renviron
 
 # no sense in uploading build artifacts when we actually want to generate them remotely
 upload:
-	rsync --recursive --verbose --partial --progress --exclude '.*' --exclude 'build/*' --exclude 'renv/*' . ${PISA_BUILD_SERVER}:${PISA_REMOTE_PATH}
+	rsync --recursive --delete --verbose --partial --progress --exclude '.*' --exclude 'build/*' --exclude 'renv/*' . ${PISA_BUILD_SERVER}:${PISA_REMOTE_PATH}
 
 # when on wifi, consider that sneakernet is considerably faster
 download:
-	rsync --recursive --verbose --partial --progress ${PISA_BUILD_SERVER}:${PISA_REMOTE_PATH}/build .
+	rsync --recursive --delete --verbose --partial --progress ${PISA_BUILD_SERVER}:${PISA_REMOTE_PATH}/build .
 
 snapshot:
 	Rscript -e 'renv::snapshot()'
