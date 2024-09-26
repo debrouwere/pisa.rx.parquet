@@ -36,7 +36,7 @@ process <- function(raw, processed) {
     transmute(read_sas("data/escs/2012/escs_2000.sas7bdat"),
       nth_cycle = 1,
       country_iso = cnt,
-      school_id = pad5(schoolid),
+      school_id = pad5(str_sub(schoolid, -3)),
       student_id = pad5(stidstd),
       escs = escs_trend
     ),
@@ -93,9 +93,10 @@ process <- function(raw, processed) {
     transmute(
       nth_cycle = nth_cycle,
       country_iso = country_iso,
-      school_id = str_c('0', str_sub(cntschid, 3)),
-      student_id = str_c('0', str_sub(cntstuid, 3)),
+      school_id = str_sub(cntschid, -5),
+      student_id = str_sub(cntstuid, -5),
       hisei = hisei,
+      escs = escs,
     )
 
   escs1234 <- escs1234 |>
