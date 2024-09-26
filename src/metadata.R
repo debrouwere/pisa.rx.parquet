@@ -16,14 +16,14 @@ library("readxl")
 CYCLES <- c(2000, 2003, 2006, 2009, 2012, 2015, 2018, 2022)
 
 assessments <- open_dataset('build/pisa.rx') |>
-  select(!starts_with('pv') & !starts_with('w_') & !starts_with('f_') & !ends_with('_id') & !ends_with('_uid') & !ends_with('_iso')) |>
+  select(!starts_with('pv') & !starts_with('w_') & !starts_with('f_')) |>
   collect()
 
 # TODO: add a row for the country as a whole (if it has multiple economies or regions)
 cycles <- tibble(cycle = CYCLES)
 
 participation <- assessments |>
-  select(cycle, country, economy, region) |>
+  select(cycle, country_iso, country, economy, region) |>
   distinct()
 
 entities <- participation |>
@@ -43,12 +43,14 @@ grid_by_region <- entities |>
   cross_join(cycles)
 
 coverage_by_region <- assessments |>
+  select(!ends_with('_id') & !ends_with('_uid') & !ends_with('_iso')) |>
   right_join(grid_by_region) |>
   group_by(cycle, country, economy, region) |>
   summarize(across(everything(), \(x) round(1 - mean(is.na(x)), 2))) |>
   ungroup()
 
 coverage_by_country <- assessments |>
+  select(!ends_with('_id') & !ends_with('_uid') & !ends_with('_iso')) |>
   right_join(grid_by_country) |>
   group_by(cycle, country, economy, region) |>
   summarize(across(everything(), \(x) round(1 - mean(is.na(x)), 2))) |>
@@ -124,7 +126,7 @@ domains <- aliases |>
       domain == 'literacy' ~ TRUE,
       domain == 'math' & cycle >= 2003 ~ TRUE,
       domain == 'science' & cycle >= 2006 ~ TRUE,
-      scale %in% c('math_content_shape', 'math_content_shape') ~ TRUE,
+      scale %in% c('math_content_shape', 'math_content_change') ~ TRUE,
       .default = FALSE
     ),
   pvs = if_else(cycle >= 2015, 10, 5),
