@@ -122,6 +122,18 @@ names(subnation_to_iso) <- subnations_iso$subnation
 strata <- read_csv('data/strata.csv') |>
   mutate(cycle = as.integer(cycle))
 
+str_tail <- function(x, width) {
+  str_sub(x, start = -width)
+}
+
+str_pad0 <- function(x, width) {
+  str_pad(x, width = width, pad = '0')
+}
+
+str_clean <- function(x, width) {
+  str_replace_all(x, '[^\\d]', '')
+}
+
 process <- function(raw, processed) {
   cli_progress_step('Fetch identifiers and convert to strings')
 
@@ -141,21 +153,21 @@ process <- function(raw, processed) {
       economy_iso = economy_iso,
       economy = default(iso_to_economy[economy_iso], country),
       stratum_id = case_match(cycle,
-        2000 ~ str_pad(stratum_id, 5, pad = '0'),
-        c(2003, 2006, 2009) ~ str_pad(str_sub(stratum_id, 4), 5, pad = '0'),
-        c(2012, 2015, 2018, 2022) ~ str_pad(str_sub(stratum_id, 4), 5, pad = '0')
+        2000 ~ str_pad0(stratum_id, 5),
+        c(2003, 2006, 2009) ~ str_pad0(str_tail(stratum_id, 4), 5),
+        c(2012, 2015, 2018, 2022) ~ str_pad0(str_tail(str_clean(stratum_id), 4), 5),
         ),
       # TODO: prettify the stratum column (remove country prefixes etc.)
       stratum = stratum,
       school_id = case_match(cycle,
-        2000 ~ str_pad(str_sub(cntschid, 3), 5, pad = '0'),
+        2000 ~ str_pad0(str_tail(cntschid, 3), 5),
         c(2003, 2006, 2009) ~ cntschid,
-        2012 ~ str_sub(cntschid, 3),
-        c(2015, 2018, 2022) ~ str_sub(str_pad(as.character(cntschid), 5, pad = '0'), 4)
+        2012 ~ str_tail(cntschid, 5),
+        c(2015, 2018, 2022) ~ str_pad0(str_tail(cntschid, 4), 5),
         ),
       student_id = case_match(cycle,
         c(2000, 2003, 2006, 2009, 2012) ~ cntstuid,
-        c(2015, 2018, 2022) ~ str_sub(str_pad(as.character(cntstuid), 8, pad = '0'), 4)
+        c(2015, 2018, 2022) ~ str_tail(cntstuid, 5),
         ),
       # PISA 2000 does not include a stratum column, but it is equal to the first two digits of the schoolid column;
       # in subsequent editions strata identifiers are unique across countries, so to match that expectation we
@@ -212,7 +224,7 @@ process <- function(raw, processed) {
   # which is *not* all of the information that is available in `subnatio`
   processed <- processed |>
     mutate(region = if_else(map_int(country_iso, get_n_regions) > 1, region, economy)) |>
-    mutate(region = if_else(is.na(region) & !is.na(country), str_glue('{country}: rest of the country'), region))
+    mutate(region = if_else(is.na(region) & !is.na(country), str_c(country, ": rest of the country"), region))
 
   cli_progress_step('Create globally unique identifiers from partially unique identifiers')
 
