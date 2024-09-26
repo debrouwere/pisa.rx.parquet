@@ -16,7 +16,7 @@ snapshot:
 update: snapshot upload
 	ssh ${PISA_BUILD_SERVER} "cd ${PISA_REMOTE_PATH}; Rscript -e 'renv::restore()'"
 
-codebook:
+metadata:
 	ssh ${PISA_BUILD_SERVER} "cd ${PISA_REMOTE_PATH}; Rscript src/metadata.R"
 
 build:
