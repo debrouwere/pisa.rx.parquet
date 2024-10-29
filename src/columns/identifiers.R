@@ -152,6 +152,10 @@ process <- function(raw, processed) {
       country = iso_to_name[country_iso],
       economy_iso = economy_iso,
       economy = default(iso_to_economy[economy_iso], country),
+      # leave original ids untouched for cross-referencing with other data sets that use them
+      school_oid = cntschid,
+      student_oid = cntstuid,
+      # clean up ids
       stratum_id = case_match(cycle,
         2000 ~ str_pad0(stratum_id, 5),
         c(2003, 2006, 2009) ~ str_pad0(str_tail(stratum_id, 4), 5),

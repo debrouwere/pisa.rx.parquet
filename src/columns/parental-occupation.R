@@ -36,29 +36,29 @@ process <- function(raw, processed) {
     transmute(read_sas("data/escs/2012/escs_2000.sas7bdat"),
       nth_cycle = 1,
       country_iso = cnt,
-      school_id = pad5(str_sub(schoolid, -3)),
-      student_id = pad5(stidstd),
+      school_oid = pad5(schoolid),
+      student_oid = pad5(stidstd),
       escs = escs_trend
     ),
     transmute(read_sas("data/escs/2012/escs_2003.sas7bdat"),
       nth_cycle = 2,
       country_iso = cnt,
-      school_id = pad5(schoolid),
-      student_id = pad5(stidstd),
+      school_oid = pad5(schoolid),
+      student_oid = pad5(stidstd),
       escs = escs_trend
     ),
     transmute(read_sas("data/escs/2012/escs_2006.sas7bdat"),
       nth_cycle = 3,
       country_iso = cnt,
-      school_id = pad5(schoolid),
-      student_id = pad5(stidstd),
+      school_oid = pad5(schoolid),
+      student_oid = pad5(stidstd),
       escs = escs_trend
     ),
     transmute(read_sas("data/escs/2012/escs_2009.sas7bdat"),
       nth_cycle = 4,
       country_iso = cnt,
-      school_id = pad5(schoolid),
-      student_id = pad5(stidstd),
+      school_oid = pad5(schoolid),
+      student_oid = pad5(stidstd),
       escs = escs_trend
     )
   )
@@ -67,14 +67,14 @@ process <- function(raw, processed) {
     rename(
       nth_cycle = 'cycle',
       country_iso = 'cnt',
-      school_id = 'schoolid',
-      student_id = 'studentid',
+      school_oid = 'schoolid',
+      student_oid = 'studentid',
       escs = 'escs_trend',
       hisei = 'hisei_trend',
       homepos = 'homepos_trend',
     ) |> mutate(
-      school_id = pad5(school_id),
-      student_id = pad5(student_id),
+      school_oid = pad5(school_oid),
+      student_oid = pad5(student_oid),
     ) |>
     filter(nth_cycle >= 4)
 
@@ -86,15 +86,15 @@ process <- function(raw, processed) {
     keep_at(c('2000', '2003', '2006', '2009')) |>
     bind_rows() |>
     mutate(hisei = hisei + 0.0871992180632055) |>
-    rename(student_id = 'cntstuid', school_id = 'cntschid')
+    rename(student_oid = 'cntstuid', school_oid = 'cntschid')
   hisei567 <- hisei567
   hisei8 <- raw$`2022` |>
     select(nth_cycle, country_iso, cntschid, cntstuid, hisei, escs) |>
     transmute(
       nth_cycle = nth_cycle,
       country_iso = country_iso,
-      school_id = str_sub(cntschid, -5),
-      student_id = str_sub(cntstuid, -5),
+      school_oid = str_sub(cntschid, -5),
+      student_oid = str_sub(cntstuid, -5),
       hisei = hisei,
       escs = escs,
     )
@@ -105,23 +105,38 @@ process <- function(raw, processed) {
   escs8 <- hisei8
 
   hisei <- bind_rows(hisei1234, hisei567, hisei8) |>
-    select(nth_cycle, country_iso, school_id, student_id, hisei)
+    select(nth_cycle, country_iso, school_oid, student_oid, hisei)
   escs <- bind_rows(escs1234, escs567, escs8) |>
-    select(nth_cycle, country_iso, school_id, student_id, escs)
+    select(nth_cycle, country_iso, school_oid, student_oid, escs)
 
   cli_progress_step('Merge calibrated variables')
 
-  ids <- c('nth_cycle', 'country_iso', 'school_id', 'student_id')
+  ids <- c('nth_cycle', 'country_iso', 'school_oid', 'student_oid')
   calibrated <- processed |>
     select(all_of(c('student_uid', ids))) |>
+    mutate(school_oid = str_sub(school_oid, -5), student_oid = str_sub(student_oid, -5)) |>
     left_join(hisei, by = ids) |>
     left_join(escs, by = ids) |>
     rename(highest_isei = 'hisei')
 
-  calibrated
+  # don't include the modified oids in the exported data, these were
+  # only needed to merge with the backports
+  calibrated |>
+    select(-school_oid, -student_oid)
+
+  # FIXME:
+  # I'm seeing some "regular" countries not get matched (Colombia, Chile) so dunno
+  # what is up there, but mostly it is Hong Kong, Macao etc. and the issue
+  # there is that these economies will not match our cleaned-up country iso codes,
+  # ditto for countries that don't really have a country code (Kosovo)
+  #
+  # orphans <- escs |> drop_na(escs) |> select(ids) |> anti_join(processed)
 }
 
 verify <- function(raw, processed) {
   expect_true(nrow(processed) <= 5000000)
   # escs |> group_by(cycle) |> summarize(mu = mean(escs, na.rm = TRUE), sd = sd(escs, na.rm = TRUE))
+  #
+  # escs |> group_by(nth_cycle) |> summarize(n = sum(!is.na(escs)))
+  # calibrated |> group_by(nth_cycle) |> summarize(n = sum(!is.na(escs)))
 }
