@@ -103,3 +103,52 @@ assessments <- open_dataset("build/pisa.rx") |>
 ```
 
 (This last example needs an extra `summarize` operation in order to calculate by region and then summarize down to the country level, otherwise countries with multiple regions would get counted more than once.)
+
+### Working with multiply imputed values for the background questionnaires (experimental)
+
+`pisa.rx` includes multiple imputations of the variables from the background questionnaires, 5 imputations for cycles before 2015 and 10 for cycles from 2015 onwards. These are available as a partitioned Parquet dataset at `build/imputations`.
+
+In theory, every PISA analysis is already an analysis on multiply imputed data (plausible values!) and so it _should_ be possible to work with multiple imputations of the data from the background questionnaire without requiring specialized software and without too much of a performance hit, as no additional repetitions of the analysis are required. In practice, this would require PISA data in long format whereas PISA is published as a wide format dataset with a separate column for each of the 10 imputed values of every scale but only a single column for everything else. As a result, the process is more involved and currently is only supported by one particular analysis package [brr](https://github.com/debrouwere/brr), one that just happens to be authored by yours truly.
+
+```r
+library("tidyverse")
+library("arrow")
+library("brr")
+
+# load weights from the regular dataset
+weights <- open_dataset("build/pisa.rx") |>
+  filter(country == "Germany") |>
+  select(starts_with("w_math")) |>
+  collect()
+
+# load outcome and predictors from the multiply imputed dataset
+assessments <- open_dataset("build/imputations") |>
+  filter(country == "Germany") |>
+  select(math, escs) |>
+  collect()
+
+# experimental, syntax may change
+fits <- brrl(
+  formula = math ~ escs,
+  final_weights = "w_math_student_final",
+  replicate_weights = "w_math_r{1:80}",
+  data = assessments,
+  weights = weights,
+  imputation_col = 'i'
+)
+
+confint(fits)
+
+# imputation error as reported will now include both 
+# error due to the plausible values as well as error
+# due to multiple imputation of the predictors
+brr_var(fits)
+```
+
+#### Further details about the imputed data
+
+Imputations are generated using the package `mice` with default settings. For the sake of computational efficiency and to keep bias low, only one cycle and country is imputed at a time. Therefore, imputations only deal with partial missingness within the active country and cycle and will not make impute using information from other countries or other cycles.
+
+To keep the dataset small, imputations include plausible values and background variables but not the final and replicate weights, as 81 weights columns times 10 imputations would lead to 810 values of which 729 are repeated data. Whereas in the main dataset outcomes are available as `pv1literacy`, `pv2literacy` and so on, in the long format imputed dataset that becomes `literacy`, `math` and `science` with a separate `i` column that indicates that this row contains the i-th imputation of both outcome and background variables for a particular student.
+
+Analyses with the full set of replicates and plausible values should execute in a similar amount of time as a wide format analysis would, but will require more memory, e.g. for 10 predictors  and 10 imputations roughly twice the memory -- 191 values (10 imputations * 1 outcome + 10 imputations * 10 predictors + 81 weights) instead of 101 values (10 imputations * 1 outcome + 10 predictors + 81 weights) per student.
