@@ -39,6 +39,7 @@ is_stable <- TRUE
 
 ISCED <- c('None', 'ISCED 1', 'ISCED 2', 'ISCED 3B, C', 'ISCED 3A, ISCED 4', 'ISCED 5B', 'ISCED 5A, 6')
 
+
 isced_to_years <- read_csv('data/isced/2018-isced-to-years.csv') |>
   pivot_longer(starts_with('ISCED'), names_to='hisced', values_to='pared') |>
   group_by(hisced) |>
@@ -58,6 +59,8 @@ process <- function(raw, processed) {
     mutate(hisced = pmax(ordered(misced), ordered(fisced), na.rm = TRUE)) |>
     group_by(country, economy, region, hisced) |>
     summarize(pared = median(pared, na.rm = TRUE))
+
+  write_csv(isced_to_years_by_area, 'build/2003-isced-to-years-by-region.csv')
 
   head <- raw$`2000` |>
     select(all_of(c('country', 'region', 'economy', 'misced', 'fisced'))) |>

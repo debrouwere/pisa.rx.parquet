@@ -22,6 +22,9 @@ metadata:
 build:
 	ssh ${PISA_BUILD_SERVER} "cd ${PISA_REMOTE_PATH}; Rscript src/preprocess.R"
 
+imputations:
+	ssh ${PISA_BUILD_SERVER} "cd ${PISA_REMOTE_PATH}; Rscript src/impute.R --nnodes 20 --safe"
+
 data:
 	mkdir -p ../pisa.parquet/build
 	wget -P ../pisa.parquet/build https://github.com/debrouwere/pisa.parquet/releases/download/v2022.1.0/2000.parquet

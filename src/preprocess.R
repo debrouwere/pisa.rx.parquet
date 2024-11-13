@@ -24,11 +24,18 @@
 #     performed in `process` had the expected effect, usually with the help of the {testthat}
 #     package
 
+
+# TODO: consider error recovery where, if an error is encountered,
+# an intermediate .parquet file is written to file named `intermediate-{last_step}`,
+# making it easier to bugfix preprocessors that are lower down on the list
+
+
 options(readr.show_col_types = FALSE)
 
 library('tidyverse', quietly = TRUE)
 library('arrow', quietly = TRUE)
 library('cli')
+library('optparse')
 
 source('src/helpers.R')
 
@@ -58,8 +65,6 @@ load <- function(cycles) {
   }) |> set_names(cycles)
 }
 
-processed <- tibble()
-
 preprocessors <- list(
   'identifiers',
   'outcomes',
@@ -71,59 +76,86 @@ preprocessors <- list(
   'parental-occupation'
 )
 
-# TODO: consider error recovery where, if an error is encountered,
-# an intermediate .parquet file is written to file named `intermediate-{last_step}`,
-# making it easier to bugfix preprocessors that are lower down on the list
+preprocess <- function(processed, preprocessors) {
+  cli_h1('Harmonize and merge PISA 2000-2022 datasets')
 
-cli_h1('Harmonize and merge PISA 2000-2022 datasets')
+  raw <- load(CYCLES)
 
-raw <- load(CYCLES)
+  cli_h3('Identifiers')
 
-# harmonize the identifiers before we run other preprocessors
-cli_h3('Identifiers')
-identifiers <- preprocessor('identifiers')
-result <- identifiers$process(raw, processed)
-
-# chicken and egg... backport identifiers to the raw data to make it easier
-# to join preprocessed data together using the `student_uid` column
-cli_progress_message('Make unique identifiers available to preprocessors')
-
-uids <- result |>
-  select(cycle, nth_cycle, country, economy, region, student_uid) |>
-  group_by(cycle) |>
-  group_split(.keep = TRUE)
-
-# arrange raw and processed data by student_uid to ensure stable output when
-# a preprocessor uses a `.by` grouped computation
-raw <- pmap(list(raw, uids), function(df, ids) {
-  df |> bind_cols(ids) |> arrange(student_uid)
-})
-processed <- result |> arrange(student_uid)
-
-identifiers$verify(raw, processed)
-
-cli_progress_done()
-
-
-
-for (name in preprocessors[-1]) {
-  ns <- preprocessor(name)
-  cli_h3(ns$description)
-  result <- ns$process(raw, processed)
-
-  if (ns$is_stable) {
-    processed <- bind_cols(select(processed, !any_of(colnames(result))), result)
-  } else {
-    processed <- left_join(processed, result, by = 'student_uid')
+  # harmonize the identifiers before we run other preprocessors
+  if ('identifiers' %in% preprocessors) {
+    preprocessors <- preprocessors[-which(preprocessors == 'identifiers')]
+    identifiers <- preprocessor('identifiers')
+    processed <- identifiers$process(raw, processed)
   }
 
-  ns$verify(raw, processed)
+  # chicken and egg... backport identifiers to the raw data to make it easier
+  # to join preprocessed data together using the `student_uid` column
+  cli_progress_message('Make unique identifiers available to preprocessors')
 
-  gc()
+  uids <- processed |>
+    select(cycle, nth_cycle, country, economy, region, student_uid) |>
+    group_by(cycle) |>
+    group_split(.keep = TRUE)
+
+  # arrange raw and processed data by student_uid to ensure stable output when
+  # a preprocessor uses a `.by` grouped computation
+  raw <- pmap(list(raw, uids), function(df, ids) {
+    df |> bind_cols(ids) |> arrange(student_uid)
+  })
+  processed <- processed |> arrange(student_uid)
+
+  if ('identifiers' %in% preprocessors) {
+    identifiers$verify(raw, processed)
+  }
+
+  cli_progress_done()
+
+  for (name in preprocessors) {
+    ns <- preprocessor(name)
+    cli_h3(ns$description)
+    result <- ns$process(raw, processed)
+
+    if (ns$is_stable) {
+      processed <- bind_cols(select(processed, !any_of(colnames(result))), result)
+    } else {
+      processed <- left_join(processed, result, by = 'student_uid')
+    }
+
+    ns$verify(raw, processed)
+
+    gc()
+  }
+
+  processed
 }
 
-write_dataset(processed,
-              path = 'build/pisa.rx',
-              partitioning = c('cycle', 'country'),
-              compression = 'zstd',
-              compression_level = 10)
+main <- function(resume_from, help) {
+  if (resume_from != '') {
+    cli_progress_message('Resume processing from {resume_from}, load existing pisa.rx dataset')
+
+    left <- which(preprocessors == resume_from)
+    right <- length(preprocessors)
+    preprocessors <- preprocessors[left:right]
+    processed <- collect(open_dataset('build/pisa.rx'))
+
+    cli_progress_done()
+  } else {
+    processed <- tibble()
+  }
+
+  processed <- preprocess(processed, preprocessors)
+
+  write_dataset(processed,
+                path = 'build/pisa.rx',
+                partitioning = c('cycle', 'country'),
+                compression = 'zstd',
+                compression_level = 10)
+
+}
+
+parser <- OptionParser() |>
+  add_option(c("-r", "--resume-from"), type="character", default='')
+args <- parse_args(parser, positional_arguments = 0, convert_hyphens_to_underscores = TRUE)
+do.call(main, args$options)
