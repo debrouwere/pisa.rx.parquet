@@ -44,11 +44,12 @@ process <- function(raw, processed) {
   # domains, but not for 2000, and as such our fractions need to be split by
   # outcome too
   processed |>
-    transmute(
+    mutate(
       f_literacy = random_order(w_literacy_student_final),
       f_math = random_order(w_math_student_final),
       f_science = random_order(w_science_student_final),
-      .by = 'stratum_uid'
+      .by = stratum_uid,
+      .keep = "none"
     )
 }
 
