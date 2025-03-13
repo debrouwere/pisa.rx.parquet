@@ -57,7 +57,7 @@ load <- function(cycles) {
     assessment <- read_parquet(
       file = file.path(PISA_PATH, year, 'students.parquet'),
       col_select=c(
-        na.omit(columns_by_assessment[[year]]),
+        all_of(na.omit(columns_by_assessment[[year]])),
         matches(PV_PATTERN),
         matches(WEIGHTS_PATTERN)
       )
@@ -131,14 +131,14 @@ preprocess <- function(processed, preprocessors) {
   processed
 }
 
-main <- function(resume_from, help) {
+main <- function(destination, resume_from, help) {
   if (resume_from != '') {
     cli_progress_message('Resume processing from {resume_from}, load existing pisa.rx dataset')
 
     left <- which(preprocessors == resume_from)
     right <- length(preprocessors)
     preprocessors <- preprocessors[left:right]
-    processed <- collect(open_dataset('build/pisa.rx'))
+    processed <- collect(open_dataset(destination))
 
     cli_progress_done()
   } else {
@@ -147,9 +147,17 @@ main <- function(resume_from, help) {
 
   processed <- preprocess(processed, preprocessors)
 
+  # as it stands, Arrow 18 (and earlier versions) exhibit severe performance
+  # degradation on reading for a dataset written from a tibble, as well as
+  # "invalid metadata" errors
+  processed <- processed |>
+    mutate(across(where(is.character), unname)) |>
+    as.data.frame()
+
   write_dataset(processed,
-                path = 'build/pisa.rx',
+                path = destination,
                 partitioning = c('cycle', 'country'),
+                version = '2.6',
                 compression = 'zstd',
                 compression_level = 10)
 
@@ -157,5 +165,7 @@ main <- function(resume_from, help) {
 
 parser <- OptionParser() |>
   add_option(c("-r", "--resume-from"), type="character", default='')
-args <- parse_args(parser, positional_arguments = 0, convert_hyphens_to_underscores = TRUE)
+args <- parse_args2(parser)
+args$options$destination <- args$args[1]
+
 do.call(main, args$options)
