@@ -46,7 +46,7 @@ process <- function(part, group, quality = 50, impute = TRUE) {
 }
 
 main <- function(source, destination, nnodes, limit, safe, help) {
-  parts <- tibble(source = Sys.glob(file.path(source, '*/*/part-0.parquet'))) |>
+  parts <- tibble(source = Sys.glob(file.path(source, '*/*/*/part-0.parquet'))) |>
     mutate(
       filename = str_sub(source, str_length(source) + 2),
       destination = file.path({{ destination }}, filename),

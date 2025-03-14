@@ -82,10 +82,14 @@ isced_to_years_by_area <- open_dataset('build/wide') |>
 
 #### Imputation ####
 
-process_region <- function(observed, cycle, quality, verbose) {
-  economy <- first(observed$economy)
-  region <- first(observed$region)
+process <- function(part, group, quality, verbose) {
+  cli_alert_info("imputing {part$filename}")
+
   min_coverage <- quality / 100
+
+  cycle <- part$cycle
+  region <- part$region
+  observed <- read_parquet(part$source)
 
   domains <- DOMAINS[[as.character(cycle)]]
 
@@ -121,7 +125,6 @@ process_region <- function(observed, cycle, quality, verbose) {
     str_replace("^(f_math|f_science)", "f_literacy") |>
     unique()
 
-
   # splice in the imputed columns
   imputed <- observed |>
     select(-any_of(colnames(imputed))) |>
@@ -129,8 +132,8 @@ process_region <- function(observed, cycle, quality, verbose) {
 
   # cast back integers to logical when needed (mice converts these)
   imputed <- imputed |> mutate(
-      speaks_test_language_at_home = as.logical(speaks_test_language_at_home)
-    )
+    speaks_test_language_at_home = as.logical(speaks_test_language_at_home)
+  )
 
   # compute derived variables: grade_lag, highest_isced, parental_education
   # (paredint), parental_education_by_country (pared)
@@ -144,27 +147,10 @@ process_region <- function(observed, cycle, quality, verbose) {
 
   # revert to original column order
   # rename weights and fraction column
-  imputed |>
+  imputed <- imputed |>
     select(all_of(all_cols)) |>
     rename_with(\(name) str_replace(name, "w_literacy", "w")) |>
     rename(f = f_literacy)
-}
-
-process_country <- function(part, group, quality, verbose) {
-  cli_alert_info("imputing {part$filename}")
-
-  observed <- read_parquet(part$source)
-
-  # `unique` maintains region ordering (which we want!), `group_by` does not;
-  # `as.data.frame()` is necessary because a parquet dataset constructed from
-  # a tibble faces a severe performance penalty
-  regions <- unique(observed$region)
-  ixs_by_region <- observed |> group_by(region) |> group_rows() |> set_names(sort(regions))
-  imputed <- regions |>
-    map(\(region) ixs_by_region[[region]]) |>
-    map(function(ixs) process_region(observed[ixs, ], cycle = part$cycle, verbose = verbose, quality = 50)) |>
-    bind_rows() |>
-    as.data.frame()
 
   if (!dir.exists(dirname(part$destination))) dir.create(dirname(part$destination), recursive = TRUE)
   write_parquet(imputed, part$destination, compression = 'zstd', compression_level = 10)
@@ -178,30 +164,31 @@ process_country <- function(part, group, quality, verbose) {
 #### CLI ####
 
 main <- function(source, destination, nnodes, limit, quality, verbose, safe, help) {
-  parts <- tibble(source = Sys.glob(file.path(source, '*/*/part-0.parquet'))) |>
+  parts <- tibble(source = Sys.glob(file.path(source, '*/*/*/part-0.parquet'))) |>
     mutate(
       filename = str_sub(source, str_length({{ source }}) + 2),
       destination = file.path({{ destination }}, filename),
-      cycle = as.integer(str_match(filename, 'cycle=(\\d+)/.+')[,2])
+      cycle = as.integer(str_match(filename, 'cycle=(\\d+)/.+')[,2]),
+      region = URLdecode(str_match(filename, 'region=([a-zA-Z\\d:%]+)/.+')[,2])
     )
 
   chunks <- list_transpose(as.list(parts), simplify = FALSE)
 
   if (limit > 0) chunks <- head(chunks, n = limit)
-  process_country <- partial(process_country, quality = quality, verbose = verbose)
-  if (safe) process_country <- safely(process_country)
+  process <- partial(process, quality = quality, verbose = verbose)
+  if (safe) process <- safely(process)
 
   sink <- if (nnodes > 1) {
     cl <- makeForkCluster(nnodes = nnodes, outfile = "")
     parLapplyLB(
       cl = cl,
       X = chunks,
-      fun = process_country
+      fun = process
     )
   } else {
     lapply(
       X = chunks,
-      FUN = process_country
+      FUN = process
     )
   }
 }

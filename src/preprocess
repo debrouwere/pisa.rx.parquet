@@ -158,7 +158,7 @@ main <- function(destination, resume_from, help) {
 
   write_dataset(processed,
                 path = destination,
-                partitioning = c('cycle', 'country'),
+                partitioning = c("cycle", "country", "region"),
                 version = '2.6',
                 compression = 'zstd',
                 compression_level = 10)
