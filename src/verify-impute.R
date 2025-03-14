@@ -95,3 +95,34 @@ weighted.mean(imputed$science, imputed$w_student_final, na.rm = TRUE)
 quantile(observed$pv1science, c(0.1, 0.5, 0.9), na.rm = TRUE)
 quantile(repeated$science, c(0.1, 0.5, 0.9), na.rm = TRUE)
 quantile(imputed$science, c(0.1, 0.5, 0.9), na.rm = TRUE)
+
+
+observed <- read_parquet('build/wide/cycle=2000/country=Belgium/part-0.parquet', col_select = all_of(c(outcomes$wide, covariates)))
+repeated <- read_parquet('build/long/observed/cycle=2000/country=Belgium/part-0.parquet', col_select = all_of(c(outcomes$long, covariates)))
+imputed <- read_parquet('build/long/imputed/cycle=2000/country=Belgium/part-0.parquet', col_select = all_of(c(outcomes$imputed, covariates)))
+
+datasets <- tribble(
+  ~name, ~path,
+  "wide", "build/wide/cycle=2000/country=Belgium/part-0.parquet",
+  "long", "build/long/observed/cycle=2000/country=Belgium/part-0.parquet",
+  "imputed", "build/long/imputed/cycle=2000/country=Belgium/part-0.parquet"
+) |>
+  mutate(
+    disk_size = file.info(path)$size / 1024^2,
+    memory_size = map_dbl(path, \(p) as.numeric(object.size(read_parquet(p))) / 1024^2),
+    per_domain_memory_size = map_dbl(path, \(p) as.numeric(object.size(read_parquet(p, col_select = !starts_with("w_science") & !starts_with("w_math")))) / 1024^2),
+  )
+
+# long format datasets are memory inefficient because they have to repeat the
+# weights (and the covariates) 5 or 10 times, but the imputed long format
+# dataset partially compensates for this because it can chuck out the w_math and
+# w_science weights; if we only need the weights for a single domain, wide
+# format still wins, though
+#
+# on disk, having fewer columns with many repeated values allows for great
+# compression so that there is no disadvantage to long format, and actually an
+# advantage to the imputed dataset
+#
+# overall, these numbers look so good that I can't see why I'd want to bother
+# with separate datasets for data and weights, or bother with wide format at all
+print(datasets)

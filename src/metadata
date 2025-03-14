@@ -1,3 +1,5 @@
+#!/usr/local/bin/Rscript
+
 # * codebook with summary stats
 # * codebook converted into binary presence/absence per country and assessments, making it easy to do
 #   `filter(hisced >= 8)` -- or maybe more flexible so we can do `mutate(across(everything(), ~ .x >= 0.50) |> summarize(across(everything()), sum, .by='economy') |> filter(hisced >= 8) |> pull(economy)`

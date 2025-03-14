@@ -1,3 +1,5 @@
+#!/usr/local/bin/Rscript
+
 # Each preprocessor is expected to define the following variables:
 #
 # * description (chr):

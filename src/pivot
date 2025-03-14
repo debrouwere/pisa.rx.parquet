@@ -1,5 +1,4 @@
-# v2 of impute.R
-# changes are mostly limited to the `process_region` function
+#!/usr/local/bin/Rscript
 
 library("tidyverse")
 library("arrow")
