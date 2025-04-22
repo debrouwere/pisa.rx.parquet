@@ -4,6 +4,8 @@ In `pisa.rx.parquet`, we have opted to pre-join data from students, teachers and
 
 `write_parquet_cpp` is a work in progress: it does the job, but does not yet support partitioning, and it does not save any metadata, so chances are it will read in factors as characters.
 
+(Note to self: since writing this, we've settled on a workflow in which we start from a wide format dataset which we then pivot and possibly impute partition by partition, something that can be easily parallelized. Support for partitioning would still be useful to write the original wide format dataset in a space-efficient manner, but it is no longer absolutely essential given that the long format datasets are much nicer to work with anyway.)
+
 The encoding types are:
 
 * PLAIN = 0
@@ -23,10 +25,14 @@ Most encodings are limited to particular types of data:
 * ints: DELTA_BINARY_PACKED
 * bools: RLE
 
-`DELTA_BYTE_ARRAY` (7) in particular shows very good performance for repeated strings, in combination with ZSTD compression.
+`DELTA_BYTE_ARRAY` (7) in particular shows very good performance for repeated strings, in combination with ZSTD compression. `BYTE_STREAM_SPLIT` would probably work well for outcomes since these have a predictable sign and exponent, though I haven't tested this yet.
 
 See https://parquet.apache.org/docs/file-format/data-pages/encodings/ for more information.
 
 Note that in Parquet 2.0+, the default encoding for columns is RLE_DICTIONARY which first generates a dictionary for all values, replaces values with indices that point to the dictionary, and then applies run-length encoding to the indices. For factors and other columns with few enough unique values, which allows for a dictionary to be created, this encoding is hard to beat. The other encodings do have an advantage for columns with too many unique values for a dictionary and for columns with small incremental changes such as the various `uid` columns in the dataset.
 
+(Note to self: pisa.rx.parquet includes `columns` metadata for most preprocessors. We could easily add the preferred column encoding to this table for later use.)
+
 Also note that the RLE algorithm for bools may not be useful for us because booleans in Parquet do not support NA values.
+
+Note also that Parquet 2 supports nested data structures, so in principle students could be nested in schools, and schools nested in countries. I would imagine that, if R supports this, it would translate to nested tibbles. However, this comes with a potential performance penalty when reading (for some reason parquet files written from tibbles are slower than those written from data.frames), and it makes the data more difficult to analyze unless rectangled and that transformation would add a second performance penalty... so given that we do care about file size but only secondarily to speed of (raw or filtered or col-selected) reads, this is not a good solution for us.
