@@ -1,3 +1,6 @@
+library("tidyverse")
+library("arrow")
+
 #### verification ####
 
 outcomes <- list(
@@ -54,9 +57,12 @@ covariates <- c(
   'parental_education_by_country'
 )
 
-observed <- read_parquet('build/wide/cycle=2000/country=Albania/part-0.parquet', col_select = all_of(c(outcomes$wide, covariates)))
-repeated <- read_parquet('build/long/observed/cycle=2000/country=Albania/part-0.parquet', col_select = all_of(c(outcomes$long, covariates)))
-imputed <- read_parquet('build/long/imputed/cycle=2000/country=Albania/part-0.parquet', col_select = all_of(c(outcomes$imputed, covariates)))
+observed <- read_parquet('build/wide/cycle=2000/country=Albania/region=Albania/part-0.parquet',
+  col_select = all_of(c(outcomes$wide, covariates)))
+repeated <- read_parquet('build/long/observed/cycle=2000/country=Albania/region=Albania/part-0.parquet',
+  col_select = all_of(c(outcomes$long, covariates)))
+imputed <- read_parquet('build/long/imputed/cycle=2000/country=Albania/region=Albania/part-0.parquet',
+  col_select = all_of(c(outcomes$imputed, covariates)))
 nrow(imputed) / nrow(observed)
 
 observed |> slice(2) |> glimpse()
@@ -70,9 +76,12 @@ imputed |> group_by(i) |> slice(133) |> ungroup() |> glimpse()
 
 
 
-observed <- read_parquet('build/wide/cycle=2000/country=Belgium/part-0.parquet', col_select = all_of(c(outcomes$wide, covariates)))
-repeated <- read_parquet('build/long/observed/cycle=2000/country=Belgium/part-0.parquet', col_select = all_of(c(outcomes$long, covariates)))
-imputed <- read_parquet('build/long/imputed/cycle=2000/country=Belgium/part-0.parquet', col_select = all_of(c(outcomes$imputed, covariates)))
+observed <- read_parquet('build/wide/cycle=2000/country=Belgium/region=Belgium%3A%20Flemish%20community/part-0.parquet',
+  col_select = all_of(c(outcomes$wide, covariates)))
+repeated <- read_parquet('build/long/observed/cycle=2000/country=Belgium/region=Belgium%3A%20Flemish%20community/part-0.parquet',
+  col_select = all_of(c(outcomes$long, covariates)))
+imputed <- read_parquet('build/long/imputed/cycle=2000/country=Belgium/region=Belgium%3A%20Flemish%20community/part-0.parquet',
+  col_select = all_of(c(outcomes$imputed, covariates)))
 imputed_1 <- imputed |> filter(i == 1)
 nrow(imputed) / nrow(observed)
 
